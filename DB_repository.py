@@ -57,6 +57,14 @@ class MailingAgreement(Base):
     user_rel = relationship("Users", back_populates="agreement")
 
 
+class UsersSessions(Base):
+    __tablename__ = 'sessions'
+    record_id = Column(Integer, primary_key=True)
+    user_id = Column(String(50))
+    previous_data = Column(String(100))
+    validation = Column(String(8))
+
+
 def seek_user(viber_request, d_session):
     user = d_session.query(Users).filter_by(viber_id=viber_request.user.id)
     if not user:
@@ -119,4 +127,19 @@ class DBRepository(object):
         self.database_session.add(Users(username=username, viber_id=viber_id, group_id=3))
         self.database_session.commit()
 
+    def get_session(self, user_id):
+        return self.database_session.query(UsersSessions).filter_by(user_id=user_id).first()
 
+    def write_session(self, user_id, session_data, session_exceed):
+        self.database_session.add(UsersSessions(user_id=user_id, previous_data=session_data, validation=session_exceed))
+        self.database_session.commit()
+
+    def delete_session(self, user_id):
+        session = self.database_session.query(UsersSessions).filter_by(user_id=user_id).first()
+        self.database_session.delete(session)
+        self.database_session.commit()
+
+    def get_lessons(self):
+        schedule_records = self.database_session.query(Schedule).all()
+        lessons = [record.lesson for record in schedule_records]
+        return lessons

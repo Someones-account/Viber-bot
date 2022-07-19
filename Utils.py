@@ -3,16 +3,19 @@ import datetime
 import re
 
 from Commands import Command
-from DB_repository import DBRepository
-import logging
+from Session_control import write_session
 
 
-logger = logging.getLogger("FlaskAppLog")
-logger.setLevel(logging.INFO)
-fh = logging.FileHandler("log.txt")
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-logger.addHandler(fh)
+def create_button(cols, rows, text, reply):
+    return {
+            "Columns": cols,
+            "Rows": rows,
+            "BgColor": "#3beb28",
+            "ActionType": "reply",
+            "ActionBody": reply,
+            "ReplyType": "message",
+            "Text": text
+        }
 
 
 def get_full_date(dat, sep):
@@ -58,95 +61,102 @@ def get_date(lesson_available_info, date=''):
         return date
 
 
-def executor(message, viber_request, bot_repository, d_session):
-    db_repository = DBRepository(d_session)
-    rgg = db_repository.get_request_group()
-    group_id = db_repository.get_group_id(viber_request.sender.id)
-    if message.command == Command.GET:
-        if group_id != 4:
-            logger.info(message)
-            schedule_record = db_repository.get_schedule(message.command_args.lesson)
-            get(message, viber_request, bot_repository, rgg, schedule_record, db_repository)
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.WRITE:
-        if group_id < 3:
-            schedule_record = db_repository.get_schedule(message.command_args.lesson)
-            lesson_available_info = {0: schedule_record.monday, 1: schedule_record.tuesday, 2: schedule_record.wednesday,
-                                     3: schedule_record.thursday, 4: schedule_record.friday, 5: 'no', 6: 'no'}
-            result_date = get_date(lesson_available_info, message.command_args.date)
-            records = db_repository.get(message.command_args.lesson, result_date)
-            requests = db_repository.get_homework_requests(message.command_args.lesson, result_date)
-            write(message, viber_request, bot_repository, db_repository, schedule_record, records, requests)
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.CHANGE:
-        if group_id < 3:
-            query_obj = db_repository.get(message.command_args.lesson, message.date)
-            if query_obj is []:
-                bot_repository.send_message(viber_request.sender.id, 'Извините, такой записи не существует!')
-            else:
-                db_repository.change(lesson=message.command_args.lesson, date=message.command_args.date,
-                                     new_value=message.command_args.task)
-                bot_repository.send_message(viber_request.sender.id, 'Домашнее задание успешно изменено!')
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.GET_SCH:
-        if group_id == 1:
-            a = db_repository.get_schedule(message.command_args.lesson)
-            bot_repository.send_message(viber_request.sender.id, f'{a.lesson, a.monday, a.tuesday}'
-                                                                 f'{a.wednesday, a.thursday, a.friday}')
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.WRITE_SCH:
-        if group_id == 1:
-            db_repository.write_schedule(message.command_args.lesson, message.command_args.mon, message.command_args.tue,
-                                         message.command_args.wed, message.command_args.thu, message.command_args.fri)
-            bot_repository.send_message(viber_request.sender.id, 'Готово!')
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.CHANGE_SCH:
-        if group_id == 1:
-            query_obj = db_repository.get_schedule(message.command_args.lesson)
-            if query_obj is []:
-                bot_repository.send_message(viber_request.sender.id, 'Извините, такой записи не существует!')
-            else:
-                db_repository.change_schedule(message.command_args.lesson, message.command_args.date,
-                                              message.command_args.task)
-                bot_repository.send_message(viber_request.sender.id, 'Готово!')
-                # lesson, day, value
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.ACCESS:
-        if group_id == 1:
-            db_repository.change_access(message.command_args.lesson, message.command_args.date)
-            bot_repository.send_message(viber_request.sender.id, 'Готово!')
-        # id, level
-        else:
-            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
-    elif message.command == Command.START:
-        start_menu(viber_request, bot_repository)
-    elif message.command == Command.HELP:
-        users_help(viber_request, bot_repository)
-    elif message.command == Command.GET_USERS.value:
-        all_users = db_repository.get_list_users()
-        username_list = (f'{user.username} | {user.user_id} | {user.group_id}' for user in all_users)
-        users_data = '\n'.join(username_list)
-        bot_repository.send_message(viber_request.sender.id, users_data)
-    else:
-        bot_repository.send_message(viber_request.sender.id, "Неизвестная команда! Повторите пожалуйста ввод.")
+def access_control(user_level, required_level):
+    if user_level > required_level:
+        raise PermissionError("Inappropriate access level")
 
 
-def get(message, user_request, bot_repository, rgg, schedule_record, db_repository):
+def executor(message, viber_request, bot_repository, db_repository, sys_logger):
+    try:
+        group_id = db_repository.get_group_id(viber_request.sender.id)
+        rgg = db_repository.get_request_group()
+        if message.command == Command.START:
+            start_menu(viber_request, bot_repository)
+        elif message.command == Command.GETTER_LESSON:
+            access_control(group_id, 3)
+            all_lessons = db_repository.get_lessons()
+            message_lesson(viber_request, bot_repository, all_lessons, "получить")
+        elif message.command == Command.GETTER_DATE_TYPE:
+            message_date_type(viber_request, bot_repository, message.full_message)
+        elif message.command == Command.GETTER_DATE:
+            message_date(viber_request, bot_repository, message.command_args.datetype)
+            write_session(db_repository, viber_request.sender.id, message.full_message)
+        elif message.command == Command.GET:
+            access_control(group_id, 3)
+            schedule_record = db_repository.get_schedule(message.command_args.lesson)
+            get(message, viber_request, bot_repository, rgg, schedule_record, db_repository, sys_logger)
+            start_menu(viber_request, bot_repository)
+        elif message.command == Command.WRITER_LESSON:
+            access_control(group_id, 2)
+            all_lessons = db_repository.get_lessons()
+            message_lesson(viber_request, bot_repository, all_lessons, "записать")
+        elif message.command == Command.WRITER_DATE_TYPE:
+            message_date_type(viber_request, bot_repository, message.full_message)
+        elif message.command == Command.WRITER_DATE:
+            message_date(viber_request, bot_repository, message.command_args.datetype)
+            write_session(db_repository, viber_request.sender.id, message.full_message)
+        elif message.command == Command.WRITER_CONTENT:
+            record_content(viber_request, bot_repository)
+            write_session(db_repository, viber_request.sender.id, message.full_message)
+        elif message.command == Command.WRITE:
+            access_control(group_id, 2)
+            schedule_record = db_repository.get_schedule(message.command_args.lesson)
+            write(message, viber_request, bot_repository, db_repository, schedule_record)
+            start_menu(viber_request, bot_repository)
+        elif message.command == Command.MODIFIER_LESSON:
+            access_control(group_id, 2)
+            all_lessons = db_repository.get_lessons()
+            message_lesson(viber_request, bot_repository, all_lessons, "изменить")
+        elif message.command == Command.MODIFIER_DATE:
+            message_date(viber_request, bot_repository, "вручную")
+            write_session(db_repository, viber_request.sender.id, message.full_message)
+        elif message.command == Command.MODIFIER_CONTENT:
+            record_content(viber_request, bot_repository)
+            write_session(db_repository, viber_request.sender.id, message.full_message)
+        elif message.command == Command.CHANGE:
+            access_control(group_id, 2)
+            change(viber_request, bot_repository, db_repository, message.command_args.lesson,
+                   message.command_args.datetype, message.command_args.date)
+            start_menu(viber_request, bot_repository)
+        elif message.command == Command.HELP:
+            users_help(viber_request, bot_repository)
+        elif message.command == Command.UNKNOWN:
+            bot_repository.send_message(viber_request.sender.id, 'Неизвестная комманда! Повторите ввод.')
+    except PermissionError:
+        bot_repository.send_message(viber_request.sender.id, "У вас недостаточный уровень доступа!")
+
+
+def message_lesson(user_request, bot_repository, lessons, command):
+    bot_repository.send_keyboard(user_request.sender.id, [
+        create_button(3, 1, lesson, f"{command}*{lesson}") for lesson in lessons])
+
+
+def message_date_type(user_request, bot_repository, message):
+    bot_repository.send_keyboard(user_request.sender.id, [
+        create_button(3, 1, "Следующий урок", f"{message}*автоматически*"),
+        create_button(3, 1, "Ввести дату", f"{message}*вручную")
+    ])
+
+
+def message_date(user_request, bot_repository, date_type):
+    if date_type == 'вручную':
+        bot_repository.send_message(user_request.sender.id, "Введите пожалуйста дату:")
+
+
+def record_content(user_request, bot_repository):
+    bot_repository.send_message(user_request.sender.id, "Введите задание:")
+
+
+def get(message, user_request, bot_repository, rgg, schedule_record, db_repository, logger):
     command_dict = {0: schedule_record.monday, 1: schedule_record.tuesday, 2: schedule_record.wednesday,
                     3: schedule_record.thursday, 4: schedule_record.friday, 5: 'no', 6: 'no'}
-    check_result = get_full_date(message.command_args.date, '-')
-    if check_result == "Unknown":
+    full_date = get_full_date(message.command_args.date, '-')
+    if full_date == "Unknown":
         raise ValueError('Incorrect date type!')
-    result_date = get_date(command_dict, check_result)
-    records = db_repository.message_lesson(message.command_args.lesson, result_date)
+    result_date = get_date(command_dict, full_date)
+    records = db_repository.get(message.command_args.lesson, result_date)
     requests = db_repository.get_homework_requests(message.command_args.lesson, result_date)
-    weekday = datetime.datetime.today().weekday()
+    weekday = datetime.datetime.strptime(result_date, "%Y-%m-%d").weekday()
     if command_dict[weekday] != 'no':
         if len(records) == 0:
             if len(requests) == 0:
@@ -155,25 +165,26 @@ def get(message, user_request, bot_repository, rgg, schedule_record, db_reposito
                     if us.user_rel.viber_id != user_request.sender.id:
                         bot_repository.send_message(us.user_rel.viber_id,
                                                     f'Можете пожалуйста дать домашнее задание по "{message.command_args.lesson}" на {message.date}?')
-                bot_repository.send_message(user_request.sender.id,
-                                            '''Извините, домашнего задания по данному уроку пока нет.''')
-            else:
-                bot_repository.send_message(user_request.sender.id,
-                                            '''Извините, домашнего задания по данному уроку пока нет.''')
-        else:
-            records = records[len(records) - 1]
             bot_repository.send_message(user_request.sender.id,
-                                        f'Домашнее задание по "{message.command_args.lesson}" на {records.date}: {records.task}')
+                                        '''Извините, домашнего задания по данному уроку пока нет.''')
+        else:
+            record = records[len(records) - 1]
+            bot_repository.send_message(user_request.sender.id,
+                                        f'Домашнее задание по "{message.command_args.lesson}" на {record.date}: {record.task}')
     else:
         bot_repository.send_message(user_request.sender.id, 'Извините, в указанный день нет этого урока!')
 
 
-def write(message, user_request, bot_repository, db_repository, schedule_record, records, requests):
+def write(message, user_request, bot_repository, db_repository, schedule_record):
     command_dict = {0: schedule_record.monday, 1: schedule_record.tuesday, 2: schedule_record.wednesday,
                     3: schedule_record.thursday, 4: schedule_record.friday, 5: 'no', 6: 'no'}
+    records = db_repository.get(message.command_args.lesson, message.command_args.date)
+    requests = db_repository.get_homework_requests(message.command_args.lesson, message.command_args.date)
     full_date = get_full_date(message.command_args.date, '-')
+    if full_date == "Unknown":
+        raise ValueError('Incorrect date type!')
     result_date = get_date(command_dict, full_date)
-    weekday = datetime.datetime.today().weekday()
+    weekday = datetime.datetime.strptime(result_date, "%Y-%m-%d").weekday()
     if command_dict[weekday] != 'no':
         if len(records) == 0:
             db_repository.insert(message.command_args.lesson,  result_date, message.command_args.task)
@@ -187,6 +198,15 @@ def write(message, user_request, bot_repository, db_repository, schedule_record,
                                         f'Домашнее задание по "{message.command_args.lesson}" уже существует!')
     else:
         bot_repository.send_message(user_request.sender.id, 'Извините, в указанный день нет этого урока!')
+
+
+def change(user_request, bot_repository, db_repository, lesson, date, task):
+    query_obj = db_repository.get(lesson, date)
+    if query_obj is []:
+        bot_repository.send_message(user_request.sender.id, 'Извините, такой записи не существует!')
+    else:
+        db_repository.change(lesson=lesson, date=date, new_value=task)
+        bot_repository.send_message(user_request.sender.id, 'Домашнее задание успешно изменено!')
 
 
 def users_help(user_request, bot_repository):
@@ -205,53 +225,13 @@ def users_help(user_request, bot_repository):
 Почта тех.поддержки: homework.bot2019@gmail.com
 Контакт вайбер: 0682524842''')
     bot_repository.send_keyboard(user_request.sender.id, [
-        {
-            "Columns": 6,
-            "Rows": 2,
-            "BgColor": "#e6f5ff",
-            "ActionType": "reply",
-            "ActionBody": "Старт",
-            "ReplyType": "message",
-            "Text": "Назад"
-        }])
+        create_button(6, 2, "Назад", "Старт")])
 
 
 def start_menu(user_request, bot_repository):
     bot_repository.send_keyboard(user_request.sender.id, [
-        {
-            "Columns": 3,
-            "Rows": 1,
-            "BgColor": "#e6f5ff",
-            "ActionType": "reply",
-            "ActionBody": "Помощь",
-            "ReplyType": "message",
-            "Text": "Помощь"
-        },
-        {
-            "Columns": 3,
-            "Rows": 1,
-            "BgColor": "#e6f5ff",
-            "ActionType": "reply",
-            "ActionBody": "Получить",
-            "ReplyType": "message",
-            "Text": "Получить"
-        },
-        {
-            "Columns": 3,
-            "Rows": 1,
-            "BgColor": "#e6f5ff",
-            "ActionType": "reply",
-            "ActionBody": "Записать",
-            "ReplyType": "message",
-            "Text": "Записать"
-        },
-        {
-            "Columns": 3,
-            "Rows": 1,
-            "BgColor": "#e6f5ff",
-            "ActionType": "reply",
-            "ActionBody": "Изменить",
-            "ReplyType": "message",
-            "Text": "Изменить"
-        }
+        create_button(3, 1, "Помощь", "Помощь"),
+        create_button(3, 1, "Получить", "Получить"),
+        create_button(3, 1, "Записать", "Записать"),
+        create_button(3, 1, "Изменить", "Изменить")
     ])
