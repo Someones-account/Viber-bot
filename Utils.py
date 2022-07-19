@@ -68,8 +68,7 @@ def executor(message, viber_request, bot_repository, d_session):
             schedule_record = db_repository.get_schedule(message.command_args.lesson)
             get(message, viber_request, bot_repository, rgg, schedule_record, db_repository)
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.WRITE:
         if group_id < 3:
             schedule_record = db_repository.get_schedule(message.command_args.lesson)
@@ -80,69 +79,62 @@ def executor(message, viber_request, bot_repository, d_session):
             requests = db_repository.get_homework_requests(message.command_args.lesson, result_date)
             write(message, viber_request, bot_repository, db_repository, schedule_record, records, requests)
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.CHANGE:
         if group_id < 3:
             query_obj = db_repository.get(message.command_args.lesson, message.date)
             if query_obj is []:
-                bot_repository.send_message('Извините, такой записи не существует!',
-                                            viber_request.sender.id)
+                bot_repository.send_message(viber_request.sender.id, 'Извините, такой записи не существует!')
             else:
                 db_repository.change(lesson=message.command_args.lesson, date=message.command_args.date,
                                      new_value=message.command_args.task)
-                bot_repository.send_message('Домашнее задание успешно изменено!',
-                                            viber_request.sender.id)
+                bot_repository.send_message(viber_request.sender.id, 'Домашнее задание успешно изменено!')
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.GET_SCH:
         if group_id == 1:
             a = db_repository.get_schedule(message.command_args.lesson)
-            bot_repository.send_message(f'{a.lesson, a.monday, a.tuesday}' 
-                                        f'{a.wednesday, a.thursday, a.friday}', viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, f'{a.lesson, a.monday, a.tuesday}'
+                                                                 f'{a.wednesday, a.thursday, a.friday}')
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.WRITE_SCH:
         if group_id == 1:
             db_repository.write_schedule(message.command_args.lesson, message.command_args.mon, message.command_args.tue,
                                          message.command_args.wed, message.command_args.thu, message.command_args.fri)
-            bot_repository.send_message('Готово!', viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Готово!')
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.CHANGE_SCH:
         if group_id == 1:
             query_obj = db_repository.get_schedule(message.command_args.lesson)
             if query_obj is []:
-                bot_repository.send_message('Извините, такой записи не существует!', viber_request.sender.id)
+                bot_repository.send_message(viber_request.sender.id, 'Извините, такой записи не существует!')
             else:
                 db_repository.change_schedule(message.command_args.lesson, message.command_args.date,
                                               message.command_args.task)
-                bot_repository.send_message('Готово!', viber_request.sender.id)
+                bot_repository.send_message(viber_request.sender.id, 'Готово!')
                 # lesson, day, value
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
     elif message.command == Command.ACCESS:
         if group_id == 1:
             db_repository.change_access(message.command_args.lesson, message.command_args.date)
-            bot_repository.send_message('Готово!', viber_request.sender.id)
-# id, level
+            bot_repository.send_message(viber_request.sender.id, 'Готово!')
+        # id, level
         else:
-            bot_repository.send_message('Извините, у вас нет доступа к данному действию!',
-                                        viber_request.sender.id)
+            bot_repository.send_message(viber_request.sender.id, 'Извините, у вас нет доступа к данному действию!')
+    elif message.command == Command.START:
+        start_menu(viber_request, bot_repository)
     elif message.command == Command.HELP:
         users_help(viber_request, bot_repository)
     elif message.command == Command.GET_USERS.value:
         all_users = db_repository.get_list_users()
         username_list = (f'{user.username} | {user.user_id} | {user.group_id}' for user in all_users)
         users_data = '\n'.join(username_list)
-        bot_repository.send_message(users_data, viber_request.sender.id)
+        bot_repository.send_message(viber_request.sender.id, users_data)
     else:
-        bot_repository.send_message("Неизвестная команда! Повторите пожалуйста ввод.",
-                                    viber_request.sender.id)
+        bot_repository.send_message(viber_request.sender.id, "Неизвестная команда! Повторите пожалуйста ввод.")
 
 
 def get(message, user_request, bot_repository, rgg, schedule_record, db_repository):
@@ -152,7 +144,7 @@ def get(message, user_request, bot_repository, rgg, schedule_record, db_reposito
     if check_result == "Unknown":
         raise ValueError('Incorrect date type!')
     result_date = get_date(command_dict, check_result)
-    records = db_repository.get(message.command_args.lesson, result_date)
+    records = db_repository.message_lesson(message.command_args.lesson, result_date)
     requests = db_repository.get_homework_requests(message.command_args.lesson, result_date)
     weekday = datetime.datetime.today().weekday()
     if command_dict[weekday] != 'no':
@@ -161,20 +153,19 @@ def get(message, user_request, bot_repository, rgg, schedule_record, db_reposito
                 db_repository.write_homework_request(message.command_args.lesson, result_date, user_request.sender.id)
                 for us in rgg:
                     if us.user_rel.viber_id != user_request.sender.id:
-                        bot_repository.send_message(
-                            f'Можете пожалуйста дать домашнее задание по "{message.command_args.lesson}" на {message.date}?',
-                            us.user_rel.viber_id)
-                bot_repository.send_message('''Извините, домашнего задания по данному уроку пока нет.''',
-                                            user_request.sender.id)
+                        bot_repository.send_message(us.user_rel.viber_id,
+                                                    f'Можете пожалуйста дать домашнее задание по "{message.command_args.lesson}" на {message.date}?')
+                bot_repository.send_message(user_request.sender.id,
+                                            '''Извините, домашнего задания по данному уроку пока нет.''')
             else:
-                bot_repository.send_message('''Извините, домашнего задания по данному уроку пока нет.''',
-                                            user_request.sender.id)
+                bot_repository.send_message(user_request.sender.id,
+                                            '''Извините, домашнего задания по данному уроку пока нет.''')
         else:
             records = records[len(records) - 1]
-            bot_repository.send_message(f'Домашнее задание по "{message.command_args.lesson}" на {records.date}: {records.task}',
-                                        user_request.sender.id)
+            bot_repository.send_message(user_request.sender.id,
+                                        f'Домашнее задание по "{message.command_args.lesson}" на {records.date}: {records.task}')
     else:
-        bot_repository.send_message('Извините, в указанный день нет этого урока!', user_request.sender.id)
+        bot_repository.send_message(user_request.sender.id, 'Извините, в указанный день нет этого урока!')
 
 
 def write(message, user_request, bot_repository, db_repository, schedule_record, records, requests):
@@ -186,20 +177,20 @@ def write(message, user_request, bot_repository, db_repository, schedule_record,
     if command_dict[weekday] != 'no':
         if len(records) == 0:
             db_repository.insert(message.command_args.lesson,  result_date, message.command_args.task)
-            bot_repository.send_message(f'Домашнее задание по "{message.command_args.lesson}" успешно записано. Спасибо!',
-                                        user_request.sender.id)
+            bot_repository.send_message(user_request.sender.id,
+                                        f'Домашнее задание по "{message.command_args.lesson}" успешно записано. Спасибо!')
             for req in requests:
-                bot_repository.send_message(
-                    f'Домашнее задание по "{message.command_args.task}" на {result_date}: {message.command_args.task}', req.user_id)
+                bot_repository.send_message(req.user_id,
+                                            f'Домашнее задание по "{message.command_args.task}" на {result_date}: {message.command_args.task}')
         else:
-            bot_repository.send_message(f'Домашнее задание по "{message.command_args.lesson}" уже существует!',
-                                        user_request.sender.id)
+            bot_repository.send_message(user_request.sender.id,
+                                        f'Домашнее задание по "{message.command_args.lesson}" уже существует!')
     else:
-        bot_repository.send_message('Извините, в указанный день нет этого урока!', user_request.sender.id)
+        bot_repository.send_message(user_request.sender.id, 'Извините, в указанный день нет этого урока!')
 
 
 def users_help(user_request, bot_repository):
-    bot_repository.send_message(f'''Справка по использованию данного бота:
+    bot_repository.send_message(user_request.sender.id, f'''Справка по использованию данного бота:
 Для получения домашнего задания, введите: Получить*Название урока*Дата
 Дата должна указываться в формате год-месяц-день, например: 2019-10-04
 Если вы хотите получить актуальное домашнее задание, напишите и отправьте сообщение в Viber : Получить*Название урока*
@@ -212,4 +203,55 @@ def users_help(user_request, bot_repository):
 Для повторного выведения данной инструкции, введите: Помощь
 Со всеми вопросами по использованию данного бота обращайтесь сюда:
 Почта тех.поддержки: homework.bot2019@gmail.com
-Контакт вайбер: 0682524842''', user_request.sender.id)
+Контакт вайбер: 0682524842''')
+    bot_repository.send_keyboard(user_request.sender.id, [
+        {
+            "Columns": 6,
+            "Rows": 2,
+            "BgColor": "#e6f5ff",
+            "ActionType": "reply",
+            "ActionBody": "Старт",
+            "ReplyType": "message",
+            "Text": "Назад"
+        }])
+
+
+def start_menu(user_request, bot_repository):
+    bot_repository.send_keyboard(user_request.sender.id, [
+        {
+            "Columns": 3,
+            "Rows": 1,
+            "BgColor": "#e6f5ff",
+            "ActionType": "reply",
+            "ActionBody": "Помощь",
+            "ReplyType": "message",
+            "Text": "Помощь"
+        },
+        {
+            "Columns": 3,
+            "Rows": 1,
+            "BgColor": "#e6f5ff",
+            "ActionType": "reply",
+            "ActionBody": "Получить",
+            "ReplyType": "message",
+            "Text": "Получить"
+        },
+        {
+            "Columns": 3,
+            "Rows": 1,
+            "BgColor": "#e6f5ff",
+            "ActionType": "reply",
+            "ActionBody": "Записать",
+            "ReplyType": "message",
+            "Text": "Записать"
+        },
+        {
+            "Columns": 3,
+            "Rows": 1,
+            "BgColor": "#e6f5ff",
+            "ActionType": "reply",
+            "ActionBody": "Изменить",
+            "ReplyType": "message",
+            "Text": "Изменить"
+        }
+    ])

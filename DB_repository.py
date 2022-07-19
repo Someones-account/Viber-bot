@@ -118,3 +118,5 @@ class DBRepository(object):
     def add_user(self, viber_id, username):
         self.database_session.add(Users(username=username, viber_id=viber_id, group_id=3))
         self.database_session.commit()
+
+

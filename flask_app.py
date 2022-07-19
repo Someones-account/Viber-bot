@@ -2,22 +2,23 @@
 from flask import Flask, request, Response
 from viberbot import Api
 from viberbot.api.bot_configuration import BotConfiguration
-from viberbot.api.messages import TextMessage
+from viberbot.api.messages import TextMessage, KeyboardMessage
 from viberbot.api.viber_requests import ViberMessageRequest, ViberConversationStartedRequest
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from my_parser import parse_message
 from Utils import executor
 from DB_repository import seek_user, DBRepository
+from Session_control import get_session, delete_session
 import logging
 
 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
+logger = logging.getLogger("FlaskAppLog")
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler("log.txt")
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 engine = create_engine(
     'mysql+mysqlconnector://Viberbothomework:a111111a@Viberbothomework.mysql.pythonanywhere-services.com/Viberbothomework$Viberbot',
     pool_recycle=100)
@@ -35,8 +36,15 @@ class BotRepository(object):
     def __init__(self, api_object):
         self.api = api_object
 
-    def send_message(self, text, recipient):
+    def send_message(self, recipient, text):
         self.api.send_messages(recipient, TextMessage(text=text))
+
+    def send_keyboard(self, recipient, buttons):
+        reply_box = {
+            "Type": "keyboard",
+            "Buttons": buttons
+        }
+        self.api.send_messages(recipient, KeyboardMessage(tracking_data="tracking_data", keyboard=reply_box))
 
 
 @app.route('/', methods=['POST'])
@@ -67,10 +75,14 @@ def main_app():
 
     if isinstance(viber_request, ViberMessageRequest):
         message = viber_request.message
-        str_message = parse_message(message.text)
+        full_request = message.text
+        current_session = get_session(db_repository, viber_request.sender.id)
+        if current_session != "":
+            full_request = current_session + "*" + message.text
+            delete_session(db_repository, viber_request.sender.id)
+        str_message = parse_message(full_request)
         bot_repository = BotRepository(viber)
-        logger.info("Invoked")
-        executor(str_message, viber_request, bot_repository, session)
+        executor(str_message, viber_request, bot_repository, db_repository, logger)
 
     return Response(status=200)
 

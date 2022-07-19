@@ -6,6 +6,7 @@ class Command(Enum):
     WRITE = 'записать'
     CHANGE = 'изменить'
     HELP = "помощь"
+    START = "старт"
     GET_SCH = "получить расписание"
     WRITE_SCH = "записать расписание"
     CHANGE_SCH = "изменить расписание"
